@@ -1,1 +1,1 @@
-gcc -o conv8_16 conv8_16.c
+gcc -o conv8_16_5 conv8_16_5.c
