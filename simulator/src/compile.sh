@@ -1,0 +1,1 @@
+gcc -o conv8_16 conv8_16.c
