@@ -105,30 +105,32 @@ int main(int argc, char **argv) {
 
     // const char *memoryFileName = "memory/memory.txt";
 
-    if (argc < 12) { // + 1
+    if (argc < 13) { // + 1
         printf("Error: Arguments Should Be \n");
         printf("Error: streamingSetting, baseAddress, inputChannels, hight, weight, outputChannels\n");
         return -1;
     }
     const char *memoryFileName = argv[1];
-    const char *streamFileName = argv[2];
-    int streamingSetting = atoi(argv[3]);
-    int inputAddress = atoi(argv[4]);
-    int convWeightAddress = atoi(argv[5]);
-    int convBiasAddress = atoi(argv[6]);
-    int outputAddress = atoi(argv[7]);
-    int inputChannels = atoi(argv[8]);
-    int height = atoi(argv[9]);
-    int width = atoi(argv[10]);
-    int outputChannels = atoi(argv[11]);
+    const char *streamInput = argv[2];
+    const char *streamDest = argv[3];
+    int streamingSetting = atoi(argv[4]);
+    int inputAddress = atoi(argv[5]);
+    int convWeightAddress = atoi(argv[6]);
+    int convBiasAddress = atoi(argv[7]);
+    int outputAddress = atoi(argv[8]);
+    int inputChannels = atoi(argv[9]);
+    int height = atoi(argv[10]);
+    int width = atoi(argv[11]);
+    int outputChannels = atoi(argv[12]);
 
     // ASCII value of 0 is 48
-    int tileNumber = (int)streamFileName[strlen(streamFileName) - 1] - 48;
+    int tileNumber = (int)streamInput[strlen(streamInput) - 1] - 48;
 
     printf("Conv8_16_5\n");
     printf("memoryFileName: %s\n", memoryFileName);
     printf("tileNumber: %d\n", tileNumber);
-    printf("streamFileName: %s\n", streamFileName);
+    printf("streamInput: %s\n", streamInput);
+    printf("streamDest: %s\n", streamDest);
     printf("streamingSetting: %d\n", streamingSetting);
     printf("inputAddress: %d\n", inputAddress);
     printf("convWeightAddress: %d\n", convWeightAddress);
@@ -142,7 +144,7 @@ int main(int argc, char **argv) {
     assert(inputChannels <= MAX_INPUT_CHANNELS);
     assert(height <= MAX_IMAGE_HEIGHT);
     assert(width <= MAX_IMAGE_WIDTH);
-    assert(outputChannels <= MAX_OUTPUT_CHANNELS);    
+    assert(outputChannels <= MAX_OUTPUT_CHANNELS);
 
     int wout = (width + 2 * PAD - FILTER_SIZE) / STRIDE + 1;
     int hout = (height + 2 * PAD - FILTER_SIZE) / STRIDE + 1;
@@ -155,20 +157,28 @@ int main(int argc, char **argv) {
     int readStream = streamingSetting / 10;
     int writeStream = streamingSetting % 10;
 
-    if (readStream == 0) {
+    // image
+    if (readStream == 0) { // memory
         readArrayFromMemory(memoryFileName, inputAddress, inputImage, inputChannels * height * width);
     } else { // stream
-        readArrayFromMemory(memoryFileName, 0, inputImage, inputChannels * height * width);
+        readArrayFromMemory(streamInput, 0, inputImage, inputChannels * height * width);
     }
 
+    // weight
     readArrayFromMemory(memoryFileName, convWeightAddress, convWeight,
                         outputChannels * inputChannels * FILTER_SIZE * FILTER_SIZE);
 
+    // bias
     readArrayFromMemory(memoryFileName, convBiasAddress, convBias, outputChannels);
 
     convolution(inputChannels, height, width, outputChannels, hout, wout);
 
-    writeArrayToMemory(memoryFileName, outputAddress, convOutput, outputChannels * hout * wout);
+    // output
+    if (writeStream == 0) { // memory
+        writeArrayToMemory(memoryFileName, outputAddress, convOutput, outputChannels * hout * wout);
+    } else { // stream
+        writeArrayToMemory(streamDest, 0, convOutput, outputChannels * hout * wout);
+    }
 
     return 0;
 }

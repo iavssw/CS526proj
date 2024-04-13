@@ -111,29 +111,31 @@ int main(int argc, char **argv) {
 
     // const char *memoryFileName = "memory/memory.txt";
 
-    if (argc < 11) {
+    if (argc < 12) {
         printf("Error: Arguments Should Be \n");
         printf("Error: streamingSetting, baseAddress, inputChannels, hight, weight, outputChannels\n");
         return -1;
     }
     const char *memoryFileName = argv[1];
-    const char *streamFileName = argv[2];
-    int streamingSetting = atoi(argv[3]);
-    int inputAddress = atoi(argv[4]);
-    int outputAddress = atoi(argv[5]);
-    int inputChannels = atoi(argv[6]);
-    int height = atoi(argv[7]);
-    int width = atoi(argv[8]);
-    int poolSize = atoi(argv[9]);
-    int stride = atoi(argv[10]);
+    const char *streamInput = argv[2];
+    const char *streamDest = argv[3];
+    int streamingSetting = atoi(argv[4]);
+    int inputAddress = atoi(argv[5]);
+    int outputAddress = atoi(argv[6]);
+    int inputChannels = atoi(argv[7]);
+    int height = atoi(argv[8]);
+    int width = atoi(argv[9]);
+    int poolSize = atoi(argv[10]);
+    int stride = atoi(argv[11]);
 
     // ASCII value of 0 is 48
-    int tileNumber = (int)streamFileName[strlen(streamFileName) - 1] - 48;
+    int tileNumber = (int)streamInput[strlen(streamInput) - 1] - 48;
 
     printf("MaxPoolRelu\n");
     printf("memoryFileName: %s\n", memoryFileName);
     printf("tileNumber: %d\n", tileNumber);
-    printf("streamFileName: %s\n", streamFileName);
+    printf("streamInput: %s\n", streamInput);
+    printf("streamDest: %s\n", streamDest);
     printf("streamingSetting: %d\n", streamingSetting);
     printf("inputAddress: %d\n", inputAddress);
     printf("outputAddress: %d\n", outputAddress);
@@ -150,11 +152,30 @@ int main(int argc, char **argv) {
     int hout = (height - poolSize) / stride + 1;
     int wout = (width - poolSize) / stride + 1;
 
-    readArrayFromMemory(memoryFileName, inputAddress, inputImage, inputChannels * height * width);
+    // streamingSetting
+    //  00 -> read write data from memory
+    //  01 -> read data from memory and write data to stream
+    //  10 -> read data from stream and write data to memory
+    //  11 -> read write data from stream
+    int readStream = streamingSetting / 10;
+    int writeStream = streamingSetting % 10;
+
+    if (readStream == 0) { // memory
+        readArrayFromMemory(memoryFileName, inputAddress, inputImage, inputChannels * height * width);
+    } else { // stream
+        readArrayFromMemory(streamInput, 0, inputImage, inputChannels * height * width);
+    }
 
     maxPoolingRelu(inputChannels, height, width, poolSize, stride);
 
     writeArrayToMemory(memoryFileName, outputAddress, outputImage, inputChannels * hout * wout);
+
+    // output
+    if (writeStream == 0) { // memory
+        writeArrayToMemory(memoryFileName, outputAddress, outputImage, inputChannels * hout * wout);
+    } else { // stream
+        writeArrayToMemory(streamDest, 0, outputImage, inputChannels * hout * wout);
+    }
 
     return 0;
 }

@@ -173,9 +173,9 @@ if __name__ == "__main__":
     # for i in range(10):
     #     print("maxRef[{}]: {}".format(i, output_image[0, 3, i]))
         
-    exeCommand(["src/conv8_16_5", mainMemoryFile, "stream1", "00", str(conv1.addr_image), str(conv1.addr_kernel), str(conv1.addr_bias), str(conv1.addr_conv_output), \
+    exeCommand(["src/conv8_16_5", mainMemoryFile, "memory/stream1", "memory/stream2", "01", str(conv1.addr_image), str(conv1.addr_kernel), str(conv1.addr_bias), str(conv1.addr_conv_output), \
         str(conv1.input_channels), str(conv1.height), str(conv1.width), str(conv1.output_channels)])
-    exeCommand(["src/maxP2_2", mainMemoryFile, "stream2", "00", str(conv1.addr_conv_output), str(maxpr2.addr_output), \
+    exeCommand(["src/maxP2_2", mainMemoryFile, "memory/stream2", "memory/stream2", "10", str(conv1.addr_conv_output), str(maxpr2.addr_output), \
         str(maxpr2.input_channels), str(maxpr2.width), str(maxpr2.height), str(maxpr2.pool_size), str(maxpr2.stride)])
        
     # cConvolution1 = memManage.readArrayFromMemory(mainMemoryFile, CONV_OUTPUTOFFSET, outputChannels * h_out * w_out)    
