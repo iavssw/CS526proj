@@ -18,7 +18,9 @@ STRIDE = 1
 # Calculate offsets based on the provided formulas
 KERNELOFFSET = MAX_INPUT_CHANNELS * MAX_IMAGE_HEIGHT * MAX_IMAGE_WIDTH * 4
 BIASOFFSET = KERNELOFFSET + (MAX_OUTPUT_CHANNELS * MAX_INPUT_CHANNELS * FILTER_SIZE * FILTER_SIZE * 4)
-OUTPUTOFFSET = BIASOFFSET + (MAX_OUTPUT_CHANNELS * 4)
+CONV_OUTPUTOFFSET = BIASOFFSET + (MAX_OUTPUT_CHANNELS * 4)
+
+MAXPOOL_OUTPUTOFFSET = CONV_OUTPUTOFFSET + (MAX_OUTPUT_CHANNELS * MAX_IMAGE_HEIGHT * MAX_IMAGE_WIDTH * 4)
 
 def convolution(inputImage, convWeight, convBias, inputChannels, height, width, outputChannels, filterSize, stride, pad):
     # Output dimensions, assuming no padding (PAD=0) and stride of 1
@@ -42,6 +44,33 @@ def convolution(inputImage, convWeight, convBias, inputChannels, height, width, 
 
     return convOutput
 
+
+def max_pooling(inputData, inputChannels, height, width, pool_size=(2,2), stride=2):
+    
+    pool_height, pool_width = pool_size
+
+    # Calculate the size of the output
+    out_height = (height - pool_height) // stride + 1
+    out_width = (width - pool_width) // stride + 1
+
+    # Initialize the output with zeros
+    output = np.zeros((inputChannels, out_height, out_width))
+
+    # Perform max pooling
+    for cin in range(inputChannels):
+        for hout in range(out_height):
+            for wout in range(out_width):
+                h_start = hout * stride
+                h_end = h_start + pool_height
+                w_start = wout * stride
+                w_end = w_start + pool_width
+                max_val = np.max(inputData[cin, h_start:h_end, w_start:w_end])
+                # relu
+                relu_val = max(max_val, 0)
+                # commit to output
+                output[cin, hout, wout] = relu_val
+    return output
+
 def exeCommand(command):
     result = subprocess.run(command, capture_output=True, text=True)
     # Check if the command was executed successfully
@@ -57,7 +86,7 @@ def exeCommand(command):
 # Example usage
 if __name__ == "__main__":
     
-    sizeOfmainMemory = 8 * 1024 * 1024 # 8MB KByte
+    sizeOfmainMemory = 12 * 1024 * 1024 # 8MB KByte
     mainMemoryFile = "memory/memory.txt"
 
     
@@ -88,8 +117,8 @@ if __name__ == "__main__":
     image = readbins.get_image(images, 0)    
     
     #setupMemory
-    if True:
-    # if False:
+    # if True:
+    if False:
         memManage.setupMemory(sizeOfmainMemory, mainMemoryFile)
         # Write the image to memory
         nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, image, inputChannels * height * width, 0)
@@ -99,18 +128,40 @@ if __name__ == "__main__":
         nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_bias, outputChannels, BIASOFFSET)
     
     output_image = convolution(image, conv1_weights, conv1_bias, inputChannels, height, width, outputChannels, filterSize, stride, pad)
+    # for i in range(10):
+    #     print("output_image[{}]: {}".format(i, output_image[0, 0, i]))
+    output_image = max_pooling(output_image, 6, 28, 28)
     
-    exeCommand(["bins/conv8_16_5", "memory/memory.txt", "4", str(baseAddress), str(inputChannels), "32", "32", str(outputChannels)])
-       
-    cConvolution = memManage.readArrayFromMemory(mainMemoryFile, OUTPUTOFFSET, outputChannels * h_out * w_out)
+    for i in range(10):
+        print("maxRef[{}]: {}".format(i, output_image[0, 3, i]))
         
-    fdata = output_image.flatten()
-    for i in range(len(fdata)):
-        if (fdata[i] - cConvolution[i]) > 0.001:
-            print("Error")
-            print(i, fdata[i], cConvolution[i])   
-            exit(1) 
-    print("Success")
+    exeCommand(["bins/conv8_16_5", "memory/memory.txt", "4", str(baseAddress), str(inputChannels), "32", "32", str(outputChannels)])
+    exeCommand(["src/maxP2_2", "memory/memory.txt", "4", str(CONV_OUTPUTOFFSET), str(outputChannels), "28", "28", str(outputChannels)])
+       
+    cConvolution = memManage.readArrayFromMemory(mainMemoryFile, CONV_OUTPUTOFFSET, outputChannels * h_out * w_out)    
+    output = memManage.readArrayFromMemory(mainMemoryFile, MAXPOOL_OUTPUTOFFSET, int(outputChannels * (h_out/2) * (w_out/2)))
+        
+    # fdata = output_image.flatten()
+    # print(len(fdata))
+    # for i in range(len(fdata)):
+    #     # if (fdata[i] - output[i]) > 0.001:
+    #     print("Error")
+    #     print(i, fdata[i], output[i])   
+    #         # exit(1) 
+    # print("Success")
+    
+    for i in range(10):
+        print("maxC[{}]: {}".format(i, output[3 * 14 + i]))
     
 
-    
+# std::cout << "pool2[" << i << "]: " << pool2_output[0][3][i] << std::endl;
+# pool2[0]: 0
+# pool2[1]: 0
+# pool2[2]: 0.00917368
+# pool2[3]: 0.348876
+# pool2[4]: 0.649001
+# pool2[5]: 0.55026
+# pool2[6]: 0.721102
+# pool2[7]: 0.766258
+# pool2[8]: 0.790058
+# pool2[9]: 0.761595
