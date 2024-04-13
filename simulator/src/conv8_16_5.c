@@ -148,6 +148,7 @@ int main(int argc, char **argv) {
     int width = atoi(argv[6]);
     int outputChannels = atoi(argv[7]);
 
+    printf("Conv8_16_5\n");
     printf("memoryFileName: %s\n", memoryFileName);
     printf("streamingSetting: %d\n", streamingSetting);
     printf("baseAddress: %d\n", baseAddress);

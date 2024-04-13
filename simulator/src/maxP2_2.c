@@ -44,11 +44,6 @@ void maxPoolingRelu(int inputChannels, int height, int width, int pool_height, i
                 }
 
                 // relu
-                max_value = max_value > 0 ? max_value : 0;
-
-                if (cin == 0)
-                    printf("max_value [%d, %d, %d]: %f\n", cin, h, w, max_value);
-
                 outputImage[(cin * hout * wout) + (h * wout) + (w)] = max_value > 0 ? max_value : 0;
             }
         }
@@ -138,6 +133,7 @@ int main(int argc, char **argv) {
     int height = atoi(argv[5]);
     int width = atoi(argv[6]);
 
+    printf("MaxPool\n");
     printf("memoryFileName: %s\n", memoryFileName);
     printf("streamingSetting: %d\n", streamingSetting);
     printf("baseAddress: %d\n", baseAddress);

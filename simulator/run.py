@@ -128,31 +128,25 @@ if __name__ == "__main__":
         nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_bias, outputChannels, BIASOFFSET)
     
     output_image = convolution(image, conv1_weights, conv1_bias, inputChannels, height, width, outputChannels, filterSize, stride, pad)
-    # for i in range(10):
-    #     print("output_image[{}]: {}".format(i, output_image[0, 0, i]))
     output_image = max_pooling(output_image, 6, 28, 28)
     
     for i in range(10):
         print("maxRef[{}]: {}".format(i, output_image[0, 3, i]))
         
-    exeCommand(["bins/conv8_16_5", "memory/memory.txt", "4", str(baseAddress), str(inputChannels), "32", "32", str(outputChannels)])
+    exeCommand(["src/conv8_16_5", "memory/memory.txt", "4", str(baseAddress), str(inputChannels), "32", "32", str(outputChannels)])
     exeCommand(["src/maxP2_2", "memory/memory.txt", "4", str(CONV_OUTPUTOFFSET), str(outputChannels), "28", "28", str(outputChannels)])
        
-    cConvolution = memManage.readArrayFromMemory(mainMemoryFile, CONV_OUTPUTOFFSET, outputChannels * h_out * w_out)    
-    output = memManage.readArrayFromMemory(mainMemoryFile, MAXPOOL_OUTPUTOFFSET, int(outputChannels * (h_out/2) * (w_out/2)))
+    cConvolution1 = memManage.readArrayFromMemory(mainMemoryFile, CONV_OUTPUTOFFSET, outputChannels * h_out * w_out)    
+    maxpool2 = memManage.readArrayFromMemory(mainMemoryFile, MAXPOOL_OUTPUTOFFSET, int(outputChannels * (h_out/2) * (w_out/2)))
         
-    # fdata = output_image.flatten()
-    # print(len(fdata))
-    # for i in range(len(fdata)):
-    #     # if (fdata[i] - output[i]) > 0.001:
-    #     print("Error")
-    #     print(i, fdata[i], output[i])   
-    #         # exit(1) 
-    # print("Success")
-    
-    for i in range(10):
-        print("maxC[{}]: {}".format(i, output[3 * 14 + i]))
-    
+    fdata = output_image.flatten()
+    for i in range(len(fdata)):
+        if (fdata[i] - maxpool2[i]) > 0.001:
+            print("Error")
+            print(i, fdata[i], maxpool2[i])   
+            exit(1) 
+    print("Success")
+        
 
 # std::cout << "pool2[" << i << "]: " << pool2_output[0][3][i] << std::endl;
 # pool2[0]: 0
