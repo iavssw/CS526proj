@@ -16,13 +16,6 @@
 #define PAD 0
 #define STRIDE 1
 
-#define MAX_INPUT_SIZE (MAX_INPUT_CHANNELS * MAX_IMAGE_HEIGHT * MAX_IMAGE_WIDTH)
-#define MAX_WEIGHT_SIZE (MAX_OUTPUT_CHANNELS * MAX_INPUT_CHANNELS * FILTER_SIZE * FILTER_SIZE)
-
-#define KERNELOFFSETADDR (MAX_INPUT_SIZE * 4)
-#define BIASOFFSETADDR (KERNELOFFSETADDR + (MAX_WEIGHT_SIZE * 4))
-#define OUTPUTOFFSETADDR (BIASOFFSETADDR + (MAX_OUTPUT_CHANNELS * 4))
-
 typedef float dataType;
 
 // dataType inputImage[MAX_INPUT_CHANNELS][MAX_IMAGE_WIDTH][MAX_IMAGE_WIDTH] = {0};
@@ -62,29 +55,6 @@ void convolution(unsigned int inputChannels, unsigned int height, unsigned int w
             }
         }
     }
-}
-
-float readFloatFromMemory(const char *mainMemoryFile, int address) {
-    FILE *file = fopen(mainMemoryFile, "r");
-    if (!file) {
-        perror("Failed to open file");
-        return -1;
-    }
-
-    // Move to the position where we want to start reading
-    fseek(file, address * 3, SEEK_SET); // Each byte is 2 hex digits plus a newline
-
-    unsigned char bytes[4];
-    for (int i = 0; i < 4; i++) {
-        unsigned int byte;
-        fscanf(file, "%02X\n", &byte);
-        bytes[i] = (unsigned char)byte;
-    }
-
-    fclose(file);
-
-    float *value = (float *)bytes;
-    return *value;
 }
 
 void readArrayFromMemory(const char *mainMemoryFile, int address, dataType *array, int size) {
@@ -135,41 +105,70 @@ int main(int argc, char **argv) {
 
     // const char *memoryFileName = "memory/memory.txt";
 
-    if (argc < 7) {
+    if (argc < 12) { // + 1
         printf("Error: Arguments Should Be \n");
         printf("Error: streamingSetting, baseAddress, inputChannels, hight, weight, outputChannels\n");
         return -1;
     }
     const char *memoryFileName = argv[1];
-    int streamingSetting = atoi(argv[2]);
-    int baseAddress = atoi(argv[3]);
-    int inputChannels = atoi(argv[4]);
-    int height = atoi(argv[5]);
-    int width = atoi(argv[6]);
-    int outputChannels = atoi(argv[7]);
+    const char *streamFileName = argv[2];
+    int streamingSetting = atoi(argv[3]);
+    int inputAddress = atoi(argv[4]);
+    int convWeightAddress = atoi(argv[5]);
+    int convBiasAddress = atoi(argv[6]);
+    int outputAddress = atoi(argv[7]);
+    int inputChannels = atoi(argv[8]);
+    int height = atoi(argv[9]);
+    int width = atoi(argv[10]);
+    int outputChannels = atoi(argv[11]);
+
+    // ASCII value of 0 is 48
+    int tileNumber = (int)streamFileName[strlen(streamFileName) - 1] - 48;
 
     printf("Conv8_16_5\n");
     printf("memoryFileName: %s\n", memoryFileName);
+    printf("tileNumber: %d\n", tileNumber);
+    printf("streamFileName: %s\n", streamFileName);
     printf("streamingSetting: %d\n", streamingSetting);
-    printf("baseAddress: %d\n", baseAddress);
+    printf("inputAddress: %d\n", inputAddress);
+    printf("convWeightAddress: %d\n", convWeightAddress);
+    printf("convBiasAddress: %d\n", convBiasAddress);
+    printf("outputAddress: %d\n", outputAddress);
     printf("inputChannels: %d\n", inputChannels);
     printf("height: %d\n", height);
     printf("width: %d\n", width);
     printf("outputChannels: %d\n", outputChannels);
 
+    assert(inputChannels <= MAX_INPUT_CHANNELS);
+    assert(height <= MAX_IMAGE_HEIGHT);
+    assert(width <= MAX_IMAGE_WIDTH);
+    assert(outputChannels <= MAX_OUTPUT_CHANNELS);    
+
     int wout = (width + 2 * PAD - FILTER_SIZE) / STRIDE + 1;
     int hout = (height + 2 * PAD - FILTER_SIZE) / STRIDE + 1;
 
-    readArrayFromMemory(memoryFileName, baseAddress, inputImage, inputChannels * height * width);
+    // streamingSetting
+    //  00 -> read write data from memory
+    //  01 -> read data from memory and write data to stream
+    //  10 -> read data from stream and write data to memory
+    //  11 -> read write data from stream
+    int readStream = streamingSetting / 10;
+    int writeStream = streamingSetting % 10;
 
-    readArrayFromMemory(memoryFileName, baseAddress + KERNELOFFSETADDR, convWeight,
+    if (readStream == 0) {
+        readArrayFromMemory(memoryFileName, inputAddress, inputImage, inputChannels * height * width);
+    } else { // stream
+        readArrayFromMemory(memoryFileName, 0, inputImage, inputChannels * height * width);
+    }
+
+    readArrayFromMemory(memoryFileName, convWeightAddress, convWeight,
                         outputChannels * inputChannels * FILTER_SIZE * FILTER_SIZE);
 
-    readArrayFromMemory(memoryFileName, baseAddress + BIASOFFSETADDR, convBias, outputChannels);
+    readArrayFromMemory(memoryFileName, convBiasAddress, convBias, outputChannels);
 
     convolution(inputChannels, height, width, outputChannels, hout, wout);
 
-    writeArrayToMemory(memoryFileName, baseAddress + OUTPUTOFFSETADDR, convOutput, outputChannels * hout * wout);
+    writeArrayToMemory(memoryFileName, outputAddress, convOutput, outputChannels * hout * wout);
 
     return 0;
 }

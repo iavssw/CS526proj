@@ -11,32 +11,22 @@
 
 #define MAX_INPUT_CHANNELS 16
 
-#define POOL_SIZE 2
-#define STRIDE 2
-
-#define MAX_HOUT ((MAX_IMAGE_HEIGHT - POOL_SIZE) / STRIDE + 1)
-#define MAX_WOUT ((MAX_IMAGE_WIDTH - POOL_SIZE) / STRIDE + 1)
-
-#define MAX_INPUT_SIZE (MAX_INPUT_CHANNELS * MAX_IMAGE_HEIGHT * MAX_IMAGE_WIDTH)
-
-#define OUTPUTOFFSETADDR (MAX_INPUT_SIZE * 4)
-
 typedef float dataType;
 
 dataType inputImage[MAX_INPUT_CHANNELS * MAX_IMAGE_WIDTH * MAX_IMAGE_WIDTH] = {0};
-dataType outputImage[MAX_INPUT_CHANNELS * MAX_HOUT * MAX_WOUT] = {0};
+dataType outputImage[MAX_INPUT_CHANNELS * MAX_IMAGE_WIDTH * MAX_IMAGE_WIDTH] = {0};
 
-void maxPoolingRelu(int inputChannels, int height, int width, int pool_height, int pool_width, int stride) {
+void maxPoolingRelu(int inputChannels, int height, int width, int pool_size, int stride) {
 
-    int hout = (height - pool_height) / stride + 1;
-    int wout = (width - pool_width) / stride + 1;
+    int hout = (height - pool_size) / stride + 1;
+    int wout = (width - pool_size) / stride + 1;
 
     for (int cin = 0; cin < inputChannels; cin++) {
         for (int h = 0; h < hout; h++) {
             for (int w = 0; w < wout; w++) {
                 float max_value = -1000000000000.0;
-                for (int i = h * 2; i < h * 2 + 2; i++) {
-                    for (int j = w * 2; j < w * 2 + 2; j++) {
+                for (int i = h * stride; i < h * stride + pool_size; i++) {
+                    for (int j = w * stride; j < w * stride + pool_size; j++) {
                         if (max_value < inputImage[(cin * height * width) + (i * width) + (j)]) {
                             max_value = inputImage[(cin * height * width) + (i * width) + (j)];
                         }
@@ -121,34 +111,50 @@ int main(int argc, char **argv) {
 
     // const char *memoryFileName = "memory/memory.txt";
 
-    if (argc < 6) {
+    if (argc < 11) {
         printf("Error: Arguments Should Be \n");
         printf("Error: streamingSetting, baseAddress, inputChannels, hight, weight, outputChannels\n");
         return -1;
     }
     const char *memoryFileName = argv[1];
-    int streamingSetting = atoi(argv[2]);
-    int baseAddress = atoi(argv[3]);
-    int inputChannels = atoi(argv[4]);
-    int height = atoi(argv[5]);
-    int width = atoi(argv[6]);
+    const char *streamFileName = argv[2];
+    int streamingSetting = atoi(argv[3]);
+    int inputAddress = atoi(argv[4]);
+    int outputAddress = atoi(argv[5]);
+    int inputChannels = atoi(argv[6]);
+    int height = atoi(argv[7]);
+    int width = atoi(argv[8]);
+    int poolSize = atoi(argv[9]);
+    int stride = atoi(argv[10]);
 
-    printf("MaxPool\n");
+    // ASCII value of 0 is 48
+    int tileNumber = (int)streamFileName[strlen(streamFileName) - 1] - 48;
+
+    printf("MaxPoolRelu\n");
     printf("memoryFileName: %s\n", memoryFileName);
+    printf("tileNumber: %d\n", tileNumber);
+    printf("streamFileName: %s\n", streamFileName);
     printf("streamingSetting: %d\n", streamingSetting);
-    printf("baseAddress: %d\n", baseAddress);
+    printf("inputAddress: %d\n", inputAddress);
+    printf("outputAddress: %d\n", outputAddress);
     printf("inputChannels: %d\n", inputChannels);
     printf("height: %d\n", height);
     printf("width: %d\n", width);
+    printf("poolSize: %d\n", poolSize);
+    printf("stride: %d\n", stride);
 
-    int hout = (height - POOL_SIZE) / STRIDE + 1;
-    int wout = (width - POOL_SIZE) / STRIDE + 1;
+    assert(inputChannels <= MAX_INPUT_CHANNELS);
+    assert(height <= MAX_IMAGE_HEIGHT);
+    assert(width <= MAX_IMAGE_WIDTH);
 
-    readArrayFromMemory(memoryFileName, baseAddress, inputImage, inputChannels * height * width);
+    int hout = (height - poolSize) / stride + 1;
+    int wout = (width - poolSize) / stride + 1;
 
-    maxPoolingRelu(inputChannels, height, width, POOL_SIZE, POOL_SIZE, STRIDE);
+    readArrayFromMemory(memoryFileName, inputAddress, inputImage, inputChannels * height * width);
 
-    writeArrayToMemory(memoryFileName, baseAddress + OUTPUTOFFSETADDR, outputImage, inputChannels * hout * wout);
+    maxPoolingRelu(inputChannels, height, width, poolSize, stride);
+
+    writeArrayToMemory(memoryFileName, outputAddress, outputImage, inputChannels * hout * wout);
 
     return 0;
 }

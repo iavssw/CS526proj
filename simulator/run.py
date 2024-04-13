@@ -45,13 +45,11 @@ def convolution(inputImage, convWeight, convBias, inputChannels, height, width, 
     return convOutput
 
 
-def max_pooling(inputData, inputChannels, height, width, pool_size=(2,2), stride=2):
+def max_pooling(inputData, inputChannels, height, width, pool_size=2, stride=2):
     
-    pool_height, pool_width = pool_size
-
     # Calculate the size of the output
-    out_height = (height - pool_height) // stride + 1
-    out_width = (width - pool_width) // stride + 1
+    out_height = (height - pool_size) // stride + 1
+    out_width = (width - pool_size) // stride + 1
 
     # Initialize the output with zeros
     output = np.zeros((inputChannels, out_height, out_width))
@@ -61,9 +59,9 @@ def max_pooling(inputData, inputChannels, height, width, pool_size=(2,2), stride
         for hout in range(out_height):
             for wout in range(out_width):
                 h_start = hout * stride
-                h_end = h_start + pool_height
+                h_end = h_start + pool_size
                 w_start = wout * stride
-                w_end = w_start + pool_width
+                w_end = w_start + pool_size
                 max_val = np.max(inputData[cin, h_start:h_end, w_start:w_end])
                 # relu
                 relu_val = max(max_val, 0)
@@ -83,27 +81,64 @@ def exeCommand(command):
         print("Error:")
         print(result.stderr)
 
+class ConvLayerMemoryManager:
+    def __init__(self, base_address, input_channels, height, width, output_channels, filter_size, stride, pad):
+        self.base_address = base_address
+        self.input_channels = input_channels
+        self.height = height
+        self.width = width
+        self.output_channels = output_channels
+        self.filter_size = filter_size
+        self.stride = stride
+        self.pad = pad
+
+        # Calculate output dimensions
+        self.h_out = int((self.height - self.filter_size + 2 * self.pad) / self.stride) + 1
+        self.w_out = int((self.width - self.filter_size + 2 * self.pad) / self.stride) + 1
+        
+        # number of pixels
+        self.num_input_pixels = self.input_channels * self.height * self.width
+        self.num_output_pixels = self.output_channels * self.h_out * self.w_out
+        self.num_kernel_elements = self.output_channels * self.input_channels * self.filter_size * self.filter_size
+        self.num_bias_elements = self.output_channels
+        
+        # Calculate memory addresses assuming fp32
+        self.addr_image = self.base_address
+        self.addr_kernel = self.addr_image + self.num_input_pixels * 4
+        self.addr_bias = self.addr_kernel + self.num_kernel_elements * 4
+        self.addr_conv_output = self.addr_bias + self.num_bias_elements * 4
+        
+class MaxPoolReluLayerMemoryManager:
+    def __init__(self, base_address, input_channels, height, width, pool_size, stride):
+        self.base_address = base_address
+        self.input_channels = input_channels
+        self.height = height
+        self.width = width
+        self.pool_size = pool_size
+        self.stride = stride
+        
+        # Calculate output dimensions
+        self.h_out = int((self.height - self.pool_size) / self.stride) + 1
+        self.w_out = int((self.width - self.pool_size) / self.stride) + 1
+
+        # number of pixels
+        self.num_input_pixels = self.input_channels * self.height * self.width
+        self.num_output_pixels = self.input_channels * self.h_out * self.w_out
+        
+        # Calculate memory addresses assuming fp32
+        self.addr_input = self.base_address
+        self.addr_output = self.addr_input + self.num_input_pixels * 4
+
 # Example usage
 if __name__ == "__main__":
     
-    sizeOfmainMemory = 12 * 1024 * 1024 # 8MB KByte
-    mainMemoryFile = "memory/memory.txt"
-
-    
-    # Initialize a dummy image and kernels
-    
-    inputChannels = 1
-    height = 32
-    width = 32
-    outputChannels = 6
-    filterSize = 5
-    stride = 1
-    pad = 0
+    sizeOfmainMemory = 4 * 1024 * 1024 # 8MB KByte
+    mainMemoryFile = "memory/mainmemory"
     
     baseAddress = 0
     
-    h_out = int((height - filterSize + 2 * pad) / stride) + 1
-    w_out = int((width - filterSize + 2 * pad) / stride) + 1
+    conv1 = ConvLayerMemoryManager(base_address = baseAddress, input_channels=1, height=32, width=32, output_channels=6, filter_size=5, stride=1, pad=0)
+    maxpr2 = MaxPoolReluLayerMemoryManager(base_address = conv1.addr_conv_output, input_channels=6, height=28, width=28, pool_size=2, stride=2)
     
     # np.random.seed(42)
     # image = np.random.uniform(low=-10.0, high=10.0, size=(inputChannels, height, width))
@@ -120,24 +155,33 @@ if __name__ == "__main__":
     # if True:
     if False:
         memManage.setupMemory(sizeOfmainMemory, mainMemoryFile)
+        memManage.setupMemory(1 * 1024 * 1024, "memory/stream1")
+        memManage.setupMemory(1 * 1024 * 1024, "memory/stream2")
+
         # Write the image to memory
-        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, image, inputChannels * height * width, 0)
+        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, image, conv1.num_input_pixels, conv1.addr_image)
         # Write the kernels to memory starting after max image size
-        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_weights, outputChannels * inputChannels * filterSize * filterSize, KERNELOFFSET)
+        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_weights, conv1.num_kernel_elements, conv1.addr_kernel)
         # Write the bias to memory starting after max kernel size
-        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_bias, outputChannels, BIASOFFSET)
+        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_bias, conv1.num_bias_elements, conv1.addr_bias)
     
-    output_image = convolution(image, conv1_weights, conv1_bias, inputChannels, height, width, outputChannels, filterSize, stride, pad)
-    output_image = max_pooling(output_image, 6, 28, 28)
+    #sanity check
+    output_image = convolution(image, conv1_weights, conv1_bias, conv1.input_channels, conv1.height, conv1.width, conv1.output_channels, \
+        conv1.filter_size, conv1.stride, conv1.pad)
+    output_image = max_pooling(output_image, maxpr2.input_channels, maxpr2.width, maxpr2.height, pool_size=maxpr2.pool_size, stride=maxpr2.stride)
     
-    for i in range(10):
-        print("maxRef[{}]: {}".format(i, output_image[0, 3, i]))
+    # for i in range(10):
+    #     print("maxRef[{}]: {}".format(i, output_image[0, 3, i]))
         
-    exeCommand(["src/conv8_16_5", "memory/memory.txt", "4", str(baseAddress), str(inputChannels), "32", "32", str(outputChannels)])
-    exeCommand(["src/maxP2_2", "memory/memory.txt", "4", str(CONV_OUTPUTOFFSET), str(outputChannels), "28", "28", str(outputChannels)])
+    exeCommand(["src/conv8_16_5", mainMemoryFile, "stream1", "00", str(conv1.addr_image), str(conv1.addr_kernel), str(conv1.addr_bias), str(conv1.addr_conv_output), \
+        str(conv1.input_channels), str(conv1.height), str(conv1.width), str(conv1.output_channels)])
+    exeCommand(["src/maxP2_2", mainMemoryFile, "stream2", "00", str(conv1.addr_conv_output), str(maxpr2.addr_output), \
+        str(maxpr2.input_channels), str(maxpr2.width), str(maxpr2.height), str(maxpr2.pool_size), str(maxpr2.stride)])
        
-    cConvolution1 = memManage.readArrayFromMemory(mainMemoryFile, CONV_OUTPUTOFFSET, outputChannels * h_out * w_out)    
-    maxpool2 = memManage.readArrayFromMemory(mainMemoryFile, MAXPOOL_OUTPUTOFFSET, int(outputChannels * (h_out/2) * (w_out/2)))
+    # cConvolution1 = memManage.readArrayFromMemory(mainMemoryFile, CONV_OUTPUTOFFSET, outputChannels * h_out * w_out)    
+    maxpool2 = memManage.readArrayFromMemory(mainMemoryFile, maxpr2.addr_output, maxpr2.num_output_pixels)
+    
+    # memManage.write_float_to_memory("memory/1stream.txt", 0, 42.42)
         
     fdata = output_image.flatten()
     for i in range(len(fdata)):
