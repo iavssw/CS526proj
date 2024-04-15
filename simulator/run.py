@@ -139,6 +139,8 @@ if __name__ == "__main__":
     
     conv1 = ConvLayerMemoryManager(base_address = baseAddress, input_channels=1, height=32, width=32, output_channels=6, filter_size=5, stride=1, pad=0)
     maxpr2 = MaxPoolReluLayerMemoryManager(base_address = conv1.addr_conv_output, input_channels=6, height=28, width=28, pool_size=2, stride=2)
+    conv3 = ConvLayerMemoryManager(base_address = maxpr2.addr_output, input_channels=6, height=14, width=14, output_channels=16, filter_size=5, stride=1, pad=0)
+    maxpr4 = MaxPoolReluLayerMemoryManager(base_address = conv3.addr_conv_output, input_channels=16, height=10, width=10, pool_size=2, stride=2)
     
     # np.random.seed(42)
     # image = np.random.uniform(low=-10.0, high=10.0, size=(inputChannels, height, width))
@@ -152,54 +154,73 @@ if __name__ == "__main__":
     image = readbins.get_image(images, 0)    
     
     #setupMemory
-    if True:
-    # if False:
+    # if True:
+    if False:
         memManage.setupMemory(sizeOfmainMemory, mainMemoryFile)
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream1")
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream2")
+        memManage.setupMemory(1 * 1024 * 1024, "memory/stream3")
+        memManage.setupMemory(1 * 1024 * 1024, "memory/stream4")
 
         # Write the image to memory
         nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, image, conv1.num_input_pixels, conv1.addr_image)
+        
+        # Conv1
         # Write the kernels to memory starting after max image size
         nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_weights, conv1.num_kernel_elements, conv1.addr_kernel)
         # Write the bias to memory starting after max kernel size
         nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv1_bias, conv1.num_bias_elements, conv1.addr_bias)
+        
+        # Conv3
+        # Write the kernels to memory starting after max image size
+        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv3_weights, conv3.num_kernel_elements, conv3.addr_kernel)
+        # Write the bias to memory starting after max kernel size
+        nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, conv3_bias, conv3.num_bias_elements, conv3.addr_bias)
     
     #sanity check
     output_image = convolution(image, conv1_weights, conv1_bias, conv1.input_channels, conv1.height, conv1.width, conv1.output_channels, \
         conv1.filter_size, conv1.stride, conv1.pad)
     output_image = max_pooling(output_image, maxpr2.input_channels, maxpr2.width, maxpr2.height, pool_size=maxpr2.pool_size, stride=maxpr2.stride)
+    output_image = convolution(output_image, conv3_weights, conv3_bias, conv3.input_channels, conv3.height, conv3.width, conv3.output_channels, \
+        conv3.filter_size, conv3.stride, conv3.pad)
+    output_image = max_pooling(output_image, maxpr4.input_channels, maxpr4.width, maxpr4.height, pool_size=maxpr4.pool_size, stride=maxpr4.stride)
     
-    # for i in range(10):
-    #     print("maxRef[{}]: {}".format(i, output_image[0, 3, i]))
-        
+    # print(output_image.shape)
+    # for i in range(5):
+    #     print("maxRef[{}]: {}".format(i, output_image[3, 0, i]))
+    
+    #conv1
     exeCommand(["src/conv8_16_5", mainMemoryFile, "memory/stream1", "memory/stream2", "01", str(conv1.addr_image), str(conv1.addr_kernel), str(conv1.addr_bias), str(conv1.addr_conv_output), \
         str(conv1.input_channels), str(conv1.height), str(conv1.width), str(conv1.output_channels)])
-    exeCommand(["src/maxP2_2", mainMemoryFile, "memory/stream2", "memory/stream2", "10", str(conv1.addr_conv_output), str(maxpr2.addr_output), \
+    #maxpool2
+    exeCommand(["src/maxP2_2", mainMemoryFile, "memory/stream2", "memory/stream3", "11", str(maxpr2.addr_input), str(maxpr2.addr_output), \
         str(maxpr2.input_channels), str(maxpr2.width), str(maxpr2.height), str(maxpr2.pool_size), str(maxpr2.stride)])
-       
-    # cConvolution1 = memManage.readArrayFromMemory(mainMemoryFile, CONV_OUTPUTOFFSET, outputChannels * h_out * w_out)    
-    maxpool2 = memManage.readArrayFromMemory(mainMemoryFile, maxpr2.addr_output, maxpr2.num_output_pixels)
+    #conv3
+    exeCommand(["src/conv8_16_5", mainMemoryFile, "memory/stream3", "memory/stream4", "11", str(conv3.addr_image), str(conv3.addr_kernel), str(conv3.addr_bias), str(conv3.addr_conv_output), \
+        str(conv3.input_channels), str(conv3.height), str(conv3.width), str(conv3.output_channels)])
+    #maxpool4
+    exeCommand(["src/maxP2_2", mainMemoryFile, "memory/stream4", "memory/stream4", "10", str(maxpr4.addr_input), str(maxpr4.addr_output), \
+        str(maxpr4.input_channels), str(maxpr4.width), str(maxpr4.height), str(maxpr4.pool_size), str(maxpr4.stride)])
+
     
-    # memManage.write_float_to_memory("memory/1stream.txt", 0, 42.42)
-        
+    
+    # Read the output from memory
+    # cConvolution3 = memManage.readArrayFromMemory(mainMemoryFile, conv3.addr_conv_output, conv3.num_output_pixels)    
+    maxpool4 = memManage.readArrayFromMemory(mainMemoryFile, maxpr4.addr_output, maxpr4.num_output_pixels)
+    
+    #compare data    
     fdata = output_image.flatten()
     for i in range(len(fdata)):
-        if (fdata[i] - maxpool2[i]) > 0.001:
+        if (fdata[i] - maxpool4[i]) > 0.001:
             print("Error")
-            print(i, fdata[i], maxpool2[i])   
+            print(i, fdata[i], maxpool4[i])   
             exit(1) 
     print("Success")
         
-
-# std::cout << "pool2[" << i << "]: " << pool2_output[0][3][i] << std::endl;
-# pool2[0]: 0
-# pool2[1]: 0
-# pool2[2]: 0.00917368
-# pool2[3]: 0.348876
-# pool2[4]: 0.649001
-# pool2[5]: 0.55026
-# pool2[6]: 0.721102
-# pool2[7]: 0.766258
-# pool2[8]: 0.790058
-# pool2[9]: 0.761595
+# Starting inference
+# pool4_output[0]: 0.240955
+# pool4_output[1]: 0.293355
+# pool4_output[2]: 0.333804
+# pool4_output[3]: 0.403284
+# pool4_output[4]: 0.127201
+# Done with inference
