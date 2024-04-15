@@ -190,16 +190,16 @@ if __name__ == "__main__":
     #     print("maxRef[{}]: {}".format(i, output_image[3, 0, i]))
     
     #conv1
-    exeCommand(["src/conv8_16_5", mainMemoryFile, "memory/stream1", "memory/stream2", "01", str(conv1.addr_image), str(conv1.addr_kernel), str(conv1.addr_bias), str(conv1.addr_conv_output), \
+    exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream1", "memory/stream2", "01", str(conv1.addr_image), str(conv1.addr_kernel), str(conv1.addr_bias), str(conv1.addr_conv_output), \
         str(conv1.input_channels), str(conv1.height), str(conv1.width), str(conv1.output_channels)])
     #maxpool2
-    exeCommand(["src/maxP2_2", mainMemoryFile, "memory/stream2", "memory/stream3", "11", str(maxpr2.addr_input), str(maxpr2.addr_output), \
+    exeCommand(["src/maxp2_2", mainMemoryFile, "memory/stream2", "memory/stream3", "11", str(maxpr2.addr_input), str(maxpr2.addr_output), \
         str(maxpr2.input_channels), str(maxpr2.width), str(maxpr2.height), str(maxpr2.pool_size), str(maxpr2.stride)])
     #conv3
-    exeCommand(["src/conv8_16_5", mainMemoryFile, "memory/stream3", "memory/stream4", "11", str(conv3.addr_image), str(conv3.addr_kernel), str(conv3.addr_bias), str(conv3.addr_conv_output), \
+    exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream3", "memory/stream4", "11", str(conv3.addr_image), str(conv3.addr_kernel), str(conv3.addr_bias), str(conv3.addr_conv_output), \
         str(conv3.input_channels), str(conv3.height), str(conv3.width), str(conv3.output_channels)])
     #maxpool4
-    exeCommand(["src/maxP2_2", mainMemoryFile, "memory/stream4", "memory/stream4", "10", str(maxpr4.addr_input), str(maxpr4.addr_output), \
+    exeCommand(["src/maxp2_2", mainMemoryFile, "memory/stream4", "memory/stream4", "10", str(maxpr4.addr_input), str(maxpr4.addr_output), \
         str(maxpr4.input_channels), str(maxpr4.width), str(maxpr4.height), str(maxpr4.pool_size), str(maxpr4.stride)])
 
     
