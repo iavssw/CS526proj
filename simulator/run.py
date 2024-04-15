@@ -152,8 +152,8 @@ if __name__ == "__main__":
     image = readbins.get_image(images, 0)    
     
     #setupMemory
-    # if True:
-    if False:
+    if True:
+    # if False:
         memManage.setupMemory(sizeOfmainMemory, mainMemoryFile)
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream1")
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream2")

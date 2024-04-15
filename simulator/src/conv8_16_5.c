@@ -6,6 +6,11 @@
 #include <string.h>
 #include <time.h>
 
+typedef float dataType;
+
+#define MAX_STREAM_SIZE 1 * 1024 * 1024 // 1MB
+#define MAX_STREAM_ELEMENTS MAX_STREAM_SIZE / sizeof(dataType)
+
 #define MAX_IMAGE_HEIGHT 256
 #define MAX_IMAGE_WIDTH 256
 
@@ -15,13 +20,6 @@
 #define FILTER_SIZE 5
 #define PAD 0
 #define STRIDE 1
-
-typedef float dataType;
-
-// dataType inputImage[MAX_INPUT_CHANNELS][MAX_IMAGE_WIDTH][MAX_IMAGE_WIDTH] = {0};
-// dataType convWeight[MAX_OUTPUT_CHANNELS][MAX_INPUT_CHANNELS][FILTER_SIZE][FILTER_SIZE] = {0};
-// dataType convBias[MAX_OUTPUT_CHANNELS] = {0};
-// dataType convOutput[MAX_OUTPUT_CHANNELS][MAX_IMAGE_WIDTH][MAX_IMAGE_WIDTH] = {0};
 
 dataType inputImage[MAX_INPUT_CHANNELS * MAX_IMAGE_WIDTH * MAX_IMAGE_WIDTH] = {0};
 dataType convWeight[MAX_OUTPUT_CHANNELS * MAX_INPUT_CHANNELS * FILTER_SIZE * FILTER_SIZE] = {0};
@@ -55,6 +53,88 @@ void convolution(unsigned int inputChannels, unsigned int height, unsigned int w
             }
         }
     }
+}
+
+unsigned int readArrayFromStream(const char *mainMemoryFile, dataType *array) {
+    FILE *file = fopen(mainMemoryFile, "r+");
+    if (!file) {
+        perror("Failed to open file");
+        return 0;
+    }
+
+    // Move to the position where we want to start reading
+    fseek(file, 0, SEEK_SET); // Each byte is 2 hex digits plus a newline
+
+    unsigned int size;
+    fscanf(file, "%08X\n", &size);
+    // printf("size: %d\n", size);
+
+    if (size > MAX_STREAM_ELEMENTS) {
+        printf("Error: Size read from file exceeds the maximum array size.\n");
+        fclose(file);
+        return 0;
+    }
+
+    for (int i = 0; i < size; i++) {
+        // srcTile -> for later update
+        unsigned int srcTile;
+        fscanf(file, "%02X\n", &srcTile);
+        // printf("srcTile: %d\n", srcTile);
+
+        // data
+        unsigned char bytes[4];
+        for (int j = 0; j < 4; j++) {
+            unsigned int byte;
+            fscanf(file, "%02X\n", &byte);
+            bytes[j] = (unsigned char)byte;
+        }
+
+        array[i] = *(dataType *)bytes;
+    }
+
+    // reset stream size to 0
+    unsigned int emptyStream = 0;
+    fseek(file, 0, SEEK_SET);
+    fprintf(file, "%08X\n", emptyStream);
+    fflush(file);
+
+    fclose(file);
+
+    return size;
+}
+
+void writeArrayToStream(const char *mainMemoryFile, unsigned char srcTile, dataType *array, unsigned int size) {
+    FILE *file = fopen(mainMemoryFile, "r+");
+    if (!file) {
+        perror("Failed to open file");
+        return;
+    }
+
+    // Move to start where the lengh metadata is stored
+    unsigned int oldStreamSize;
+    fseek(file, 0, SEEK_SET); // Each byte is 2 hex digits plus a newline
+    fscanf(file, "%08X\n", &oldStreamSize);
+    // printf("oldStreamSize: %d\n", oldStreamSize);
+
+    // write the new size
+    unsigned int newStreamSize = oldStreamSize + size;
+
+    fseek(file, 0, SEEK_SET);
+    fprintf(file, "%08X\n", newStreamSize);
+
+    // Move to the end of the stream 15 = 3 (two hex digits + newline) * 5 (srcTile + 4 data bytes for float)
+    fseek(file, oldStreamSize * 15 + 9, SEEK_SET);
+
+    for (int i = 0; i < size; i++) {
+        unsigned char *bytes = (unsigned char *)&array[i];
+        fprintf(file, "%02X\n", srcTile); // src location encoded into each data packet
+        for (int j = 0; j < 4; j++) {     // Assuming dataType is 4 bytes (e.g., float)
+            fprintf(file, "%02X\n", bytes[j]);
+        }
+    }
+
+    fclose(file);
+    return;
 }
 
 void readArrayFromMemory(const char *mainMemoryFile, int address, dataType *array, int size) {
@@ -161,7 +241,8 @@ int main(int argc, char **argv) {
     if (readStream == 0) { // memory
         readArrayFromMemory(memoryFileName, inputAddress, inputImage, inputChannels * height * width);
     } else { // stream
-        readArrayFromMemory(streamInput, 0, inputImage, inputChannels * height * width);
+        // readArrayFromMemory(streamInput, 0, inputImage, inputChannels * height * width);
+        readArrayFromStream(streamInput, inputImage);
     }
 
     // weight
@@ -177,7 +258,8 @@ int main(int argc, char **argv) {
     if (writeStream == 0) { // memory
         writeArrayToMemory(memoryFileName, outputAddress, convOutput, outputChannels * hout * wout);
     } else { // stream
-        writeArrayToMemory(streamDest, 0, convOutput, outputChannels * hout * wout);
+        // writeArrayToMemory(streamDest, 0, convOutput, outputChannels * hout * wout);
+        writeArrayToStream(streamDest, (unsigned char)tileNumber, convOutput, outputChannels * hout * wout);
     }
 
     return 0;
