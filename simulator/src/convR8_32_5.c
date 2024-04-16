@@ -14,8 +14,8 @@ typedef float dataType;
 #define MAX_IMAGE_HEIGHT 256
 #define MAX_IMAGE_WIDTH 256
 
-#define MAX_INPUT_CHANNELS 8
-#define MAX_OUTPUT_CHANNELS 32
+#define MAX_INPUT_CHANNELS 16
+#define MAX_OUTPUT_CHANNELS 128
 
 #define FILTER_SIZE 5
 #define PAD 0
