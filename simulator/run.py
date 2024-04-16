@@ -66,6 +66,10 @@ def fullyConnected(input, weights, bias, inputChannels, output_channels):
     return output
 
 def exeCommand(command):
+    # if emulating:
+    #     print("Executing command:", ' '.join(command))
+    #     return
+    
     result = subprocess.run(command, capture_output=True, text=True)
     # Check if the command was executed successfully
     if result.returncode == 0:
@@ -170,19 +174,16 @@ if __name__ == "__main__":
     image = readbins.get_image(images, 0)    
     
     #setupMemory
-    # if True:
-    if False:
+    if True:
+    # if False:
         memManage.setupMemory(sizeOfmainMemory, mainMemoryFile)
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream1") #conv1
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream2") #maxpool2
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream3") #conv3
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream4") #maxpool4
-        
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream5") #conv5
-        memManage.setupMemory(1 * 1024 * 1024, "memory/stream6") #conv5
-        memManage.setupMemory(1 * 1024 * 1024, "memory/stream7") #conv5
-        memManage.setupMemory(1 * 1024 * 1024, "memory/stream8") #conv5        
-        
+        memManage.setupMemory(1 * 1024 * 1024, "memory/stream6") #conv5  
+        memManage.setupMemory(1 * 1024 * 1024, "memory/stream7") #fc6       
 
         # Write the image to memory
         nextAddress = memManage.writeFloatArrayToMemory(mainMemoryFile, image, conv1.num_input_pixels, conv1.addr_image)
@@ -221,7 +222,9 @@ if __name__ == "__main__":
     # output_image = convolution(output_image, conv5_weights, conv5_bias, conv5.input_channels, conv5.height, conv5.width, conv5.output_channels, \
     #     conv5.filter_size, conv5.stride, conv5.pad)
     # output_image = fullyConnected(output_image, fc6_weights, fc6_bias, fc6.input_channels, fc6.output_channels)
-        
+    
+    notValidadrr = 0
+    
     #conv1
     exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream1", "memory/stream2", "01", str(conv1.addr_image), str(conv1.addr_kernel), str(conv1.addr_bias), str(conv1.addr_conv_output), \
         str(conv1.input_channels), str(conv1.height), str(conv1.width), str(conv1.output_channels)])
@@ -232,15 +235,22 @@ if __name__ == "__main__":
     exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream3", "memory/stream4", "11", str(conv3.addr_image), str(conv3.addr_kernel), str(conv3.addr_bias), str(conv3.addr_conv_output), \
         str(conv3.input_channels), str(conv3.height), str(conv3.width), str(conv3.output_channels)])
     #maxpool4 -> stream to 5 differnt conv5 tiles
-    exeCommand(["src/maxp2_2", mainMemoryFile, "memory/stream4", "memory/stream5", "11" \
+    exeCommand(["src/maxp2_2", mainMemoryFile, "memory/stream4", "memory/stream5", "memory/stream6", "11" \
                 , str(maxpr4.addr_input), str(maxpr4.addr_output), str(maxpr4.input_channels), str(maxpr4.width), str(maxpr4.height), str(maxpr4.pool_size), str(maxpr4.stride)])
     
     # conv5 place holder
-    exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream5", "memory/stream6", "11", str(conv5.addr_image), str(conv5.addr_kernel), str(conv5.addr_bias), str(conv5.addr_conv_output), \
-        str(conv5.input_channels), str(conv5.height), str(conv5.width), str(conv5.output_channels)])
+    # exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream5", "memory/stream6", "11", str(conv5.addr_image), str(conv5.addr_kernel), str(conv5.addr_bias), str(conv5.addr_conv_output), \
+    #     str(conv5.input_channels), str(conv5.height), str(conv5.width), str(conv5.output_channels)])
     
+    # conv5 real
+    # print(conv5.base_address, conv5.addr_image, conv5.addr_kernel, conv5.addr_bias, conv5.addr_conv_output)
+    exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream5", "memory/stream7", "11", str(-1), str(conv5.addr_kernel), str(conv5.addr_bias), str(-1), \
+        str(16), str(5), str(5), str(60)])
+    exeCommand(["src/convR8_32_5", mainMemoryFile, "memory/stream6", "memory/stream7", "11", str(-1), str(conv5.addr_kernel + 60 * 16 * 5 * 5 * 4), str(conv5.addr_bias + 60 * 4), str(-1), \
+        str(16), str(5), str(5), str(60)])
+       
     # fc6 
-    exeCommand(["src/fc128_64", mainMemoryFile, "memory/stream6", "memory/stream6", "10", str(fc6.addr_input), str(fc6.addr_kernel), str(fc6.addr_bias), str(fc6.addr_output), \
+    exeCommand(["src/fc128_64", mainMemoryFile, "memory/stream7", "memory/stream7", "10", str(fc6.addr_input), str(fc6.addr_kernel), str(fc6.addr_bias), str(fc6.addr_output), \
         str(fc6.input_channels), str(fc6.output_channels)])
     
     # Read the output from memory
@@ -273,3 +283,11 @@ if __name__ == "__main__":
 #         print(i, fdata[i], cConvolution5[i])   
 #         exit(1) 
 # print("Success")
+
+# Executing command: src/convR8_32_5 memory/mainmemory memory/stream1 memory/stream2 01 0 4096 4696 4720 1 32 32 6
+# Executing command: src/maxp2_2 memory/mainmemory memory/stream2 memory/stream3 11 4720 23536 6 28 28 2 2
+# Executing command: src/convR8_32_5 memory/mainmemory memory/stream3 memory/stream4 11 23536 28240 37840 37904 6 14 14 16
+# Executing command: src/maxp2_2 memory/mainmemory memory/stream4 memory/stream5 memory/stream6 11 37904 44304 16 10 10 2 2
+# Executing command: src/convR8_32_5 memory/mainmemory memory/stream5 memory/stream7 11 -1 45904 237904 -1 16 5 5 60
+# Executing command: src/convR8_32_5 memory/mainmemory memory/stream6 memory/stream7 11 -1 69904 237964 -1 16 5 5 120
+# Executing command: src/fc128_64 memory/mainmemory memory/stream7 memory/stream7 10 238384 238864 243664 243704 120 10
