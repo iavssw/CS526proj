@@ -154,8 +154,8 @@ if __name__ == "__main__":
     image = readbins.get_image(images, 0)    
     
     #setupMemory
-    # if True:
-    if False:
+    if True:
+    # if False:
         memManage.setupMemory(sizeOfmainMemory, mainMemoryFile)
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream1")
         memManage.setupMemory(1 * 1024 * 1024, "memory/stream2")
@@ -201,8 +201,7 @@ if __name__ == "__main__":
     #maxpool4
     exeCommand(["src/maxp2_2", mainMemoryFile, "memory/stream4", "memory/stream4", "10", str(maxpr4.addr_input), str(maxpr4.addr_output), \
         str(maxpr4.input_channels), str(maxpr4.width), str(maxpr4.height), str(maxpr4.pool_size), str(maxpr4.stride)])
-
-    
+   
     
     # Read the output from memory
     # cConvolution3 = memManage.readArrayFromMemory(mainMemoryFile, conv3.addr_conv_output, conv3.num_output_pixels)    

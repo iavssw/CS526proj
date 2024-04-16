@@ -195,24 +195,33 @@ void writeArrayToMemory(const char *mainMemoryFile, int address, dataType *array
 
 int main(int argc, char **argv) {
 
-    // const char *memoryFileName = "memory/memory.txt";
+    int extraDest = 0;
 
-    if (argc < 12) {
-        printf("Error: Arguments Should Be \n");
-        printf("Error: streamingSetting, baseAddress, inputChannels, hight, weight, outputChannels\n");
+    int numberOfMinArguments = 12; // + 1
+    if (argc < numberOfMinArguments) {
+        printf("Error: Arguments not Correct see Source Code\n");
         return -1;
+    } else if (argc > numberOfMinArguments) {
+        extraDest = argc - numberOfMinArguments;
+        printf("Extra Dest: %d\n", extraDest);
     }
+    // plus 1 for mandatory streamDest
+    const char *streamDest[extraDest + 1];
+
     const char *memoryFileName = argv[1];
     const char *streamInput = argv[2];
-    const char *streamDest = argv[3];
-    int streamingSetting = atoi(argv[4]);
-    int inputAddress = atoi(argv[5]);
-    int outputAddress = atoi(argv[6]);
-    int inputChannels = atoi(argv[7]);
-    int height = atoi(argv[8]);
-    int width = atoi(argv[9]);
-    int poolSize = atoi(argv[10]);
-    int stride = atoi(argv[11]);
+    // read variable number of streamDest
+    for (int i = 0; i <= extraDest; i++) {
+        streamDest[i] = argv[3 + i];
+    }
+    int streamingSetting = atoi(argv[extraDest + 4]);
+    int inputAddress = atoi(argv[extraDest + 5]);
+    int outputAddress = atoi(argv[extraDest + 6]);
+    int inputChannels = atoi(argv[extraDest + 7]);
+    int height = atoi(argv[extraDest + 8]);
+    int width = atoi(argv[extraDest + 9]);
+    int poolSize = atoi(argv[extraDest + 10]);
+    int stride = atoi(argv[extraDest + 11]);
 
     // ASCII value of 0 is 48
     int tileNumber = (int)streamInput[strlen(streamInput) - 1] - 48;
@@ -221,7 +230,10 @@ int main(int argc, char **argv) {
     printf("memoryFileName: %s\n", memoryFileName);
     printf("tileNumber: %d\n", tileNumber);
     printf("streamInput: %s\n", streamInput);
-    printf("streamDest: %s\n", streamDest);
+    // print variable number of streamDest
+    for (int i = 0; i <= extraDest; i++) {
+        printf("streamDest: %s\n", streamDest[i]);
+    }
     printf("streamingSetting: %d\n", streamingSetting);
     printf("inputAddress: %d\n", inputAddress);
     printf("outputAddress: %d\n", outputAddress);
@@ -261,8 +273,9 @@ int main(int argc, char **argv) {
     if (writeStream == 0) { // memory
         writeArrayToMemory(memoryFileName, outputAddress, outputImage, inputChannels * hout * wout);
     } else { // stream
-        // writeArrayToMemory(streamDest, 0, outputImage, inputChannels * hout * wout);
-        writeArrayToStream(streamDest, (unsigned char)tileNumber, outputImage, inputChannels * hout * wout);
+        for (int i = 0; i <= extraDest; i++) {
+            writeArrayToStream(streamDest[i], (unsigned char)tileNumber, outputImage, inputChannels * hout * wout);
+        }
     }
 
     return 0;
