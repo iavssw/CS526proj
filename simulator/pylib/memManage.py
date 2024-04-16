@@ -48,8 +48,7 @@ def readArrayFromMemory(mainMemoryFile, address, size, dtype='f'):
     
     return array
 
-def writeFloatArrayToMemory(mainMemoryFile, numpyData, size, address):
-
+def writeFloatArrayToMemory(mainMemoryFile, numpyData, address, size):
     array = numpyData.flatten()
     with open(mainMemoryFile, 'r+') as mem_file:
         lines = mem_file.readlines()
